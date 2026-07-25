@@ -1,5 +1,7 @@
 # Conexão Solidária
 
+[![CI](https://github.com/Mdotta/fiap_hackathon_NETT/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Mdotta/fiap_hackathon_NETT/actions/workflows/ci.yml)
+
 A donation-management MVP for the fictional NGO "Esperança Solidária" — built as a hackathon project for a post-grad .NET software architecture course. Donors can register and donate to campaigns; NGO admins manage campaigns; donation totals are updated asynchronously through Kafka rather than synchronously in the request path.
 
 See [docs/architecture.md](docs/architecture.md) for the full C4 container diagram, ER diagram, donation-flow sequence diagram, and deployment views. See [CLAUDE.md](CLAUDE.md) for the running log of architecture decisions and their rationale.
@@ -167,15 +169,25 @@ Unit tests cover every MediatR use case handler (auth, campaigns, donations), th
 │   ├── prometheus/              # Scrape config
 │   └── grafana/provisioning/    # Auto-provisioned Prometheus datasource + dashboard
 ├── k8s/                         # Deployments, Services, ConfigMaps, Secrets, PVCs (Minikube target)
+├── insomnia/                    # Insomnia collection — all endpoints, automatic JWT auth chaining
 ├── docs/
 │   └── architecture.md          # Mermaid diagrams: C4 container, ER, sequence, deployment
+├── .github/workflows/ci.yml     # Build + test + Docker image push to GHCR on push to main
 ├── docker-compose.yml
 └── CLAUDE.md                    # Living log of architecture decisions and why they were made
 ```
 
+## CI/CD
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`:
+
+1. **Build & Test** — restores, builds in `Release`, runs the full xUnit suite (no external services needed — everything uses EF Core's InMemory provider and fakes).
+2. **Build & Push Images** — only on an actual push to `main` (skipped for PRs) and only if step 1 passed. Builds both Docker images with Buildx and pushes them to GitHub Container Registry as `ghcr.io/<owner>/solidary-api` and `solidary-worker`, tagged `latest` and the commit SHA. Uses the built-in `GITHUB_TOKEN` — no secrets to configure.
+
+Automated deployment to the cluster is intentionally not part of this pipeline (the hackathon spec marks it optional; image generation is the required part).
+
 ## What's Not Built Yet
 
-- CI pipeline (GitHub Actions) building the solution and producing Docker images on push.
 - `docs/db-justification.pdf` (required deliverable for the hackathon spec, not written yet).
 - A Hangfire dashboard UI — the recurring job runs and logs its results, but there's no `/hangfire` UI (didn't pair well with stateless JWT auth; not asked for).
 

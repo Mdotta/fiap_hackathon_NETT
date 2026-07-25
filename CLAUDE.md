@@ -82,7 +82,7 @@ All naming is in **English**, translated from the (Portuguese) spec:
 ├── docs/
 │   ├── architecture.md               # Mermaid diagrams (C4 container, ER, sequence, deployment)
 │   └── db-justification.pdf          # required "why Postgres for X and Y" doc — not written yet
-├── .github/workflows/ci.yml          # build + docker image on push to main — not started yet
+├── .github/workflows/ci.yml          # build + test + docker image push to GHCR on push to main — done
 ├── .dockerignore
 ├── docker-compose.yml                # `up -d` = deps only; `--profile app up -d --build` = deps + containerized Api/Worker
 └── README.md                         # step-by-step local run instructions
@@ -202,4 +202,8 @@ Scaffolded so far: solution structure (`Solidary.sln` + 7 projects, references w
 
 **K8s manifests done and verified live on Minikube** — see "Kubernetes (`k8s/`, Minikube)" above for the full manifest list and the three real bugs found/fixed along the way (Kafka hairpin-NAT self-registration deadlock, headless-Service readiness deadlock, exec-probe timeout too short for a JVM-spawning health check).
 
-Not yet started: CI workflow, `docs/db-justification.pdf`. Known cosmetic issue: harmless `libgssapi_krb5` load warning in container logs (see "Local Dependencies & Containerization").
+**CI pipeline done** — `.github/workflows/ci.yml`, two jobs: `build-and-test` (restore/build/test, runs on every push and PR to `main`) and `build-and-push-images` (Docker Buildx matrix over Api/Worker, pushes to GHCR as `ghcr.io/<owner>/solidary-api` / `solidary-worker`, tagged `latest` + commit SHA). The image-push job only runs on an actual push to `main` — not on PRs — so unmerged/untrusted code never gets published, and it `needs: build-and-test` so a broken build/test never produces an image. Auth uses the built-in `GITHUB_TOKEN` (no secrets to configure) with `packages: write` permission scoped to just that job. Verified locally by running the exact CI commands (`dotnet restore/build --configuration Release`, `dotnet test --no-build`, both `docker build`s) before committing the workflow — matches CI's `Release` config and Dockerfile invocations exactly, so a local pass is a strong signal CI will pass too.
+
+Also added [insomnia/Solidary.insomnia.json](insomnia/Solidary.insomnia.json) — an Insomnia collection covering every endpoint (Auth, Campaigns, Donations, Observability) with automatic JWT auth: `Login as Admin`/`Login as Donor` requests have an after-response script that writes the token into an environment variable (`adminToken`/`donorToken`), and every protected request's Bearer auth reads that variable — no manual token copy-paste. `Create Campaign` similarly auto-populates `campaignId` for the requests that need it. Requires a reasonably current Insomnia (v8+, Kong's scripting engine) for the after-response scripts to run.
+
+Not yet started: `docs/db-justification.pdf`. Known cosmetic issue: harmless `libgssapi_krb5` load warning in container logs (see "Local Dependencies & Containerization").
