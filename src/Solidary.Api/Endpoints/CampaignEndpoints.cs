@@ -1,7 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using MediatR;
+using Solidary.Application.UseCases.Campaigns.Cancel;
 using Solidary.Application.UseCases.Campaigns.Create;
+using Solidary.Application.UseCases.Campaigns.ListActive;
 using Solidary.Application.UseCases.Donations.Submit;
 
 namespace Solidary.Api.Endpoints;
@@ -11,6 +13,12 @@ public static class CampaignEndpoints
     public static IEndpointRouteBuilder MapCampaignEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/campaigns");
+
+        group.MapGet("/", async (ISender sender) =>
+        {
+            var campaigns = await sender.Send(new ListActiveCampaignsQuery());
+            return Results.Ok(campaigns);
+        });
 
         group.MapPost("/", async (CreateCampaignRequest request, ClaimsPrincipal user, ISender sender) =>
         {
@@ -38,6 +46,14 @@ public static class CampaignEndpoints
                 : Results.BadRequest(new { error = result.Error });
         }).RequireAuthorization();
 
+        group.MapPost("/{campaignId:guid}/cancel", async (Guid campaignId, ISender sender) =>
+        {
+            var result = await sender.Send(new CancelCampaignCommand(campaignId));
+            return result.IsSuccess
+                ? Results.Ok(result.Value)
+                : Results.BadRequest(new { error = result.Error });
+        }).RequireAuthorization("AdminOnly");
+
         return app;
     }
 
@@ -48,6 +64,6 @@ public static class CampaignEndpoints
     }
 }
 
-public record CreateCampaignRequest(string Title, string Description, DateTime StartDate, DateTime EndDate, decimal FundingGoal);
+public record CreateCampaignRequest(string Title, string Description, DateTimeOffset StartDate, DateTimeOffset EndDate, decimal FundingGoal);
 
 public record SubmitDonationRequest(decimal Amount);

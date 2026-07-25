@@ -23,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Solidary.Api\Solidary.Api.csproj" />
     <ProjectReference Include="..\..\src\Solidary.Application\Solidary.Application.csproj" />
+    <ProjectReference Include="..\..\src\Solidary.Worker\Solidary.Worker.csproj" />
   </ItemGroup>
 
 </Project>

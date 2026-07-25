@@ -1,4 +1,5 @@
 using Solidary.Worker.Consumers;
+using Solidary.Worker.Metrics;
 
 namespace Solidary.Worker;
 
@@ -8,6 +9,7 @@ public static class DependencyInjection
     {
         services.AddHostedService<DonationEventConsumer>();
         services.AddHealthChecks();
+        services.AddSingleton<DonationMetrics>();
 
         return services;
     }

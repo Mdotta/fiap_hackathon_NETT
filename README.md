@@ -8,7 +8,8 @@ See [docs/architecture.md](docs/architecture.md) for the full C4 container diagr
 
 - **Two services**: `Solidary.Api` (public REST API — auth, campaigns, donation intake) and `Solidary.Worker` (internal-only Kafka consumer that applies donation totals). Worker has no public-facing purpose; it only talks to Kafka and Postgres.
 - **Donations are asynchronous**: submitting a donation persists it as `Pending` and publishes a `ReceivedDonationEvent` to Kafka — the Api never updates a campaign's total directly. The Worker consumes the event, updates `Campaign.TotalRaised`, and marks the donation `Processed`.
-- **Stack**: .NET 10, EF Core + PostgreSQL (single shared database), MediatR/CQRS use cases, Kafka via Confluent's client, self-issued JWT auth, Prometheus + Grafana for observability.
+- **Stack**: .NET 10, EF Core + PostgreSQL (single shared database), MediatR/CQRS use cases, Kafka via Confluent's client, self-issued JWT auth, Hangfire for scheduled jobs, Prometheus + Grafana for observability.
+- **Campaigns close themselves**: a Hangfire recurring job (every 5 minutes, inside the Api process) marks expired `Active` campaigns as `Completed`; Admins can also cancel a campaign directly via `POST /campaigns/{id}/cancel`.
 - **Layering**: `Solidary.Domain` → `Solidary.Application` (MediatR use cases) → `Solidary.Api` / `Solidary.Worker` (hosts), with `Solidary.Infrastructure` (EF Core, Kafka, auth) and `Solidary.Contracts` (shared event DTOs) referenced by both. Each layer owns its own dependency-injection setup (`DependencyInjection.cs`), and Api endpoints are mapped in dedicated files under `Endpoints/`.
 
 ## Prerequisites
@@ -67,7 +68,7 @@ docker compose down -v       # also wipe Postgres/Grafana volumes
 | Postgres | localhost:5432 | db=`solidary`, user/pass=`solidary`/`solidary` |
 | Kafka (host access) | localhost:9094 | In-network service name is `kafka:9092` |
 | Prometheus | http://localhost:9090 | |
-| Grafana | http://localhost:3000 | admin/admin, or anonymous viewer access |
+| Grafana | http://localhost:3000 | admin/admin, or anonymous viewer access. A "Conexão Solidária — Overview" dashboard is pre-provisioned (Service Health + Donations rows) |
 
 ## Trying the API
 
@@ -100,7 +101,18 @@ CAMPAIGN_ID=$(curl -s -X POST http://localhost:8080/campaigns/ \
 curl -X POST "http://localhost:8080/campaigns/$CAMPAIGN_ID/donations" \
   -H "Content-Type: application/json" -H "Authorization: Bearer $DONOR_TOKEN" \
   -d '{"amount": 150.50}'
+
+# Public transparency listing — no auth required, only shows Active campaigns
+curl http://localhost:8080/campaigns/
+
+# Cancel a campaign (Admin only)
+curl -X POST "http://localhost:8080/campaigns/$CAMPAIGN_ID/cancel" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
+
+`startDate`/`endDate` accept any valid ISO-8601 offset (`Z`, `+00:00`, `-03:00`, etc.) — they're stored as UTC internally regardless of which offset you send.
+
+Campaigns also close themselves automatically: a Hangfire recurring job runs every 5 minutes inside the Api process and marks any `Active` campaign whose `endDate` has passed as `Completed` — no manual step needed.
 
 Or just open [Swagger UI](http://localhost:8080/swagger), click **Authorize**, paste a token from `/auth/login`, and try the endpoints interactively.
 
@@ -110,7 +122,7 @@ Or just open [Swagger UI](http://localhost:8080/swagger), click **Authorize**, p
 dotnet test tests/Solidary.Api.Tests
 ```
 
-Unit tests cover every MediatR use case handler (auth, campaigns, donations) plus the CPF checksum validator, using EF Core's InMemory provider and a fake `IEventPublisher` — no external dependencies required.
+Unit tests cover every MediatR use case handler (auth, campaigns, donations), the Hangfire campaign-closing job, the custom Prometheus donation metrics, and the CPF checksum validator — using EF Core's InMemory provider, a fake `IEventPublisher`, and an isolated `CollectorRegistry` per test. No external dependencies required.
 
 ## Project Structure
 
@@ -138,6 +150,9 @@ Unit tests cover every MediatR use case handler (auth, campaigns, donations) plu
 
 - Kubernetes manifests (`k8s/`) — targeting Minikube, planned but not started.
 - CI pipeline (GitHub Actions) building the solution and producing Docker images on push.
-- A public "list active campaigns" transparency endpoint.
-- `Campaign.Complete()` / `Cancel()` — campaigns can currently only be `Active`; the "no donations to a closed campaign" rule exists in the domain model but has no way to be exercised yet.
-- A pre-built Grafana dashboard (the datasource is provisioned; no dashboard JSON has been added).
+- `docs/db-justification.pdf` (required deliverable for the hackathon spec, not written yet).
+- A Hangfire dashboard UI — the recurring job runs and logs its results, but there's no `/hangfire` UI (didn't pair well with stateless JWT auth; not asked for).
+
+## Known Issues
+
+- Container logs show a harmless `Cannot load library libgssapi_krb5.so.2` warning from librdkafka (Confluent.Kafka's native dependency) — it's an optional GSSAPI/Kerberos probe we don't use (PLAINTEXT only) and doesn't affect producing/consuming.

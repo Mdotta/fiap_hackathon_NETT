@@ -6,8 +6,8 @@ namespace Solidary.Application.UseCases.Campaigns.Create;
 public record CreateCampaignCommand(
     string Title,
     string Description,
-    DateTime StartDate,
-    DateTime EndDate,
+    DateTimeOffset StartDate,
+    DateTimeOffset EndDate,
     decimal FundingGoal,
     Guid CreatedByUserId) : IRequest<Result<CreateCampaignResponse>>;
 

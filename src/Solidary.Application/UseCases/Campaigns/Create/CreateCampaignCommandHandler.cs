@@ -16,7 +16,7 @@ public class CreateCampaignCommandHandler(SolidaryDbContext dbContext)
         if (string.IsNullOrWhiteSpace(request.Description))
             return Result<CreateCampaignResponse>.Failure("Description is required.");
 
-        if (request.EndDate <= DateTime.UtcNow)
+        if (request.EndDate <= DateTimeOffset.UtcNow)
             return Result<CreateCampaignResponse>.Failure("End date cannot be in the past.");
 
         if (request.FundingGoal <= 0)

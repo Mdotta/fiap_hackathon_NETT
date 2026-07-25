@@ -1,6 +1,9 @@
 using System.Text;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Solidary.Api.BackgroundJobs;
 using Solidary.Api.OpenApi;
 using Solidary.Infrastructure.Auth;
 
@@ -39,6 +42,12 @@ public static class DependencyInjection
 
         services.AddHealthChecks()
             .AddNpgSql(configuration.GetConnectionString("Postgres")!);
+
+        services.AddHangfire(config => config
+            .UsePostgreSqlStorage(options =>
+                options.UseNpgsqlConnection(configuration.GetConnectionString("Postgres"))));
+        services.AddHangfireServer();
+        services.AddScoped<CloseExpiredCampaignsJob>();
 
         return services;
     }

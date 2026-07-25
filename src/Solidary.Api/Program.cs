@@ -1,5 +1,6 @@
 using Prometheus;
 using Solidary.Api;
+using Solidary.Api.BackgroundJobs;
 using Solidary.Api.Endpoints;
 using Solidary.Application;
 using Solidary.Infrastructure;
@@ -13,6 +14,7 @@ builder.Services.AddApplication();
 var app = builder.Build();
 
 await app.ApplyMigrationsAsync();
+app.ScheduleRecurringJobs();
 
 app.UseHttpMetrics();
 

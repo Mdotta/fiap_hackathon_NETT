@@ -7,8 +7,8 @@ public class Campaign
     public Guid Id { get; private set; }
     public string Title { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
-    public DateTime StartDate { get; private set; }
-    public DateTime EndDate { get; private set; }
+    public DateTimeOffset StartDate { get; private set; }
+    public DateTimeOffset EndDate { get; private set; }
     public decimal FundingGoal { get; private set; }
     public decimal TotalRaised { get; private set; }
     public CampaignStatus Status { get; private set; }
@@ -16,9 +16,9 @@ public class Campaign
 
     private Campaign() { }
 
-    public static Campaign Create(string title, string description, DateTime startDate, DateTime endDate, decimal fundingGoal, Guid createdByUserId)
+    public static Campaign Create(string title, string description, DateTimeOffset startDate, DateTimeOffset endDate, decimal fundingGoal, Guid createdByUserId)
     {
-        if (endDate <= DateTime.UtcNow)
+        if (endDate <= DateTimeOffset.UtcNow)
             throw new ArgumentException("A campaign's end date cannot be in the past.", nameof(endDate));
 
         if (fundingGoal <= 0)
@@ -29,8 +29,11 @@ public class Campaign
             Id = Guid.NewGuid(),
             Title = title,
             Description = description,
-            StartDate = startDate,
-            EndDate = endDate,
+            // Normalize to UTC (Offset=0): Postgres' timestamptz — and Npgsql's writer for it — only
+            // accepts UTC-normalized DateTimeOffset values, not arbitrary offsets. ToUniversalTime()
+            // preserves the same instant regardless of which offset the caller sent.
+            StartDate = startDate.ToUniversalTime(),
+            EndDate = endDate.ToUniversalTime(),
             FundingGoal = fundingGoal,
             TotalRaised = 0,
             Status = CampaignStatus.Active,
@@ -46,5 +49,21 @@ public class Campaign
             throw new ArgumentException("Donation amount must be greater than zero.", nameof(amount));
 
         TotalRaised += amount;
+    }
+
+    public void Complete()
+    {
+        if (Status != CampaignStatus.Active)
+            throw new InvalidOperationException("Only active campaigns can be completed.");
+
+        Status = CampaignStatus.Completed;
+    }
+
+    public void Cancel()
+    {
+        if (Status != CampaignStatus.Active)
+            throw new InvalidOperationException("Only active campaigns can be cancelled.");
+
+        Status = CampaignStatus.Cancelled;
     }
 }

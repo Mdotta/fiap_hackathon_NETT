@@ -6,12 +6,14 @@ using Solidary.Contracts.Events;
 using Solidary.Domain.Enums;
 using Solidary.Infrastructure.Messaging;
 using Solidary.Infrastructure.Persistence;
+using Solidary.Worker.Metrics;
 
 namespace Solidary.Worker.Consumers;
 
 public class DonationEventConsumer(
     IServiceScopeFactory scopeFactory,
     IOptions<KafkaSettings> kafkaOptions,
+    DonationMetrics donationMetrics,
     ILogger<DonationEventConsumer> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -103,6 +105,8 @@ public class DonationEventConsumer(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        donationMetrics.RecordDonation(campaign.Id, campaign.Title, donationEvent.Amount);
 
         logger.LogInformation(
             "Processed donation {DonationId}: campaign {CampaignId} total raised is now {TotalRaised}",

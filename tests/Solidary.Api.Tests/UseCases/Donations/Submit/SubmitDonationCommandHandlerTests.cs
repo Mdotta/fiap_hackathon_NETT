@@ -74,4 +74,23 @@ public class SubmitDonationCommandHandlerTests
         result.Error.Should().Be("Campaign not found.");
         publisher.PublishedEvents.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Handle_WithCancelledCampaign_ReturnsFailureAndDoesNotPublish()
+    {
+        await using var dbContext = InMemoryDbContextFactory.Create();
+        var campaign = CreateActiveCampaign();
+        campaign.Cancel();
+        dbContext.Campaigns.Add(campaign);
+        await dbContext.SaveChangesAsync();
+
+        var publisher = new FakeEventPublisher();
+        var handler = new SubmitDonationCommandHandler(dbContext, publisher);
+
+        var result = await handler.Handle(new SubmitDonationCommand(DonorId, campaign.Id, 100m), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Be("Donations cannot be made to a completed or cancelled campaign.");
+        publisher.PublishedEvents.Should().BeEmpty();
+    }
 }
