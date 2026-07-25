@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Builder;
 using Prometheus;
+using Solidary.Infrastructure;
 using Solidary.Worker;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHostedService<Worker>();
-builder.Services.AddHealthChecks();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddWorker();
 
 var app = builder.Build();
 

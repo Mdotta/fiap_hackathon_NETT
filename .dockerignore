@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+.git/
+.gitignore
+*.md
+docs/
+k8s/
+config/
+HACKATHON NETT.pdf

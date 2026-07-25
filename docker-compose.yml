@@ -64,6 +64,46 @@ services:
     depends_on:
       - prometheus
 
+  # api/worker are opt-in via the "app" profile: `docker compose up -d` (no profile) starts only
+  # the dependencies above, for running Api/Worker yourself from an IDE. Add `--profile app` to
+  # also build and run the containerized Api/Worker (`docker compose --profile app up -d --build`).
+  api:
+    build:
+      context: .
+      dockerfile: src/Solidary.Api/Dockerfile
+    container_name: solidary-api
+    profiles: ["app"]
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=solidary;Username=solidary;Password=solidary"
+      Kafka__BootstrapServers: "kafka:9092"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/Solidary.Worker/Dockerfile
+    container_name: solidary-worker
+    profiles: ["app"]
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=solidary;Username=solidary;Password=solidary"
+      Kafka__BootstrapServers: "kafka:9092"
+      Kafka__ConsumerGroup: "solidary-worker"
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   grafana_data:

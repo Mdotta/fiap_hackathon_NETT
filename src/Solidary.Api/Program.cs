@@ -12,6 +12,8 @@ builder.Services.AddApplication();
 
 var app = builder.Build();
 
+await app.ApplyMigrationsAsync();
+
 app.UseHttpMetrics();
 
 app.UseAuthentication();
@@ -20,6 +22,7 @@ app.UseAuthorization();
 app.MapOpenApiEndpoints();
 app.MapObservabilityEndpoints();
 app.MapAuthEndpoints();
+app.MapCampaignEndpoints();
 
 app.Run();
 
