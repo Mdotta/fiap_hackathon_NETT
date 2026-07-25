@@ -83,8 +83,19 @@ All naming is in **English**, translated from the (Portuguese) spec:
 
 Full diagrams (C4 container, ER, donation-flow sequence, deployment views for compose + Minikube) live in [docs/architecture.md](docs/architecture.md).
 
+## Persistence & Auth
+
+- `SolidaryDbContext` lives in `Solidary.Infrastructure/Persistence`, with one `IEntityTypeConfiguration<T>` per entity under `Persistence/Configurations`. Migrations live in `Persistence/Migrations`; design-time context creation goes through `SolidaryDbContextFactory` (reads `SOLIDARY_DB_CONNECTION` env var, falls back to the local compose connection string) so `dotnet ef` works without spinning up the Api host.
+- **Admin is seeded via `HasData`** in `UserConfiguration` with a fixed Guid (`00000000-0000-0000-0000-000000000001`), email `admin@solidary.local`, password `Admin@123` (BCrypt-hashed, dev-only — document in README). `HasData` requires fully deterministic values, which is why the id/hash/timestamp are hardcoded constants rather than generated at migration time.
+- **CPF validation is a real checksum**, not just a regex — `Solidary.Domain.ValueObjects.CpfValidator` implements the standard Brazilian check-digit algorithm. Covered by its own test class since it's a business rule independent of any single handler.
+- **Password hashing**: `IPasswordHasher`/`ITokenGenerator` interfaces live in `Solidary.Domain.Abstractions` (pure contracts, no infra dependency); `BCryptPasswordHasher`/`JwtTokenGenerator` implementations live in `Solidary.Infrastructure.Auth`. Registered as singletons in DI since both are stateless.
+- **Auth commands use MediatR** (`Features/Auth/Register/RegisterDonorCommand`, `Features/Auth/Login/LoginCommand` in the Api project) returning a lightweight `Result<T>` (`Solidary.Api.Common.Result`) instead of throwing on expected validation failures (duplicate email, invalid CPF, wrong password) — keeps handlers testable without exception-driven control flow, and endpoints map `Result` to the right HTTP status (400 for register failures, 401 for login failures).
+- JWT claims: `sub` (user id), `email`, `name`, `role`. Signing key/issuer/audience/expiry come from the `Jwt` config section (`JwtSettings`) — the dev signing key in `appsettings.json` is explicitly marked dev-only and must be overridden via env var/K8s secret for anything beyond local use.
+- `POST /auth/register` (public, Donor only) and `POST /auth/login` (public) are wired in `Program.cs`; `/health` exposes a Postgres-backed health check via `AspNetCore.HealthChecks.NpgSql`. Full `/metrics` (Prometheus exporter) isn't wired yet — still open.
+- Verified end-to-end against the compose Postgres: migration applies cleanly, admin seed row present, register/login/duplicate-email/wrong-password all return the expected status codes and a decodable JWT with correct role claim.
+
 ## Status
 
-Scaffolded so far: solution structure (`Solidary.sln` + 6 projects, references wired, builds clean), domain entities/enums, `ReceivedDonationEvent` contract, `docs/architecture.md`, `docker-compose.yml` with infra dependencies (Postgres, Kafka, Prometheus, Grafana — verified healthy locally).
+Scaffolded so far: solution structure (`Solidary.sln` + 6 projects, references wired, builds clean), domain entities/enums, `ReceivedDonationEvent` contract, `docs/architecture.md`, `docker-compose.yml` with infra dependencies (Postgres, Kafka, Prometheus, Grafana — verified healthy locally), EF Core `SolidaryDbContext` + initial migration (applied and verified against Postgres), JWT auth with Register/Login MediatR handlers (verified end-to-end), 14 passing xUnit tests (auth handlers + CpfValidator).
 
-Not yet started: EF Core `DbContext`/migrations, MediatR handlers + JWT auth, Kafka producer/consumer wiring, adding Api/Worker to compose (+ Dockerfiles), `k8s/` manifests, CI workflow, README.
+Not yet started: Prometheus `/metrics` exporter wiring, Kafka producer/consumer wiring, adding Api/Worker to compose (+ Dockerfiles), `k8s/` manifests, CI workflow, README.
