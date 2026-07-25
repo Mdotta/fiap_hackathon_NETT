@@ -1,0 +1,6 @@
+@Solidary.Api_HostAddress = http://localhost:5285
+
+GET {{Solidary.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
