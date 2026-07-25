@@ -41,6 +41,19 @@ All naming is in **English**, translated from the (Portuguese) spec:
 - **Worker exposes its own `/health` and `/metrics`** endpoints (via a lightweight Kestrel listener alongside the BackgroundService), same as Api.
 - Kafka/Postgres in Minikube: run however is simplest for the hackathon demo (plain Deployments in-cluster, or left external if faster to demo) — not a blocking design decision, finalize during implementation.
 
+## Local Dependencies (docker-compose)
+
+`docker-compose.yml` at the repo root currently brings up **infra dependencies only** — Postgres, Kafka, Prometheus, Grafana — not the Api/Worker services themselves (they have no Dockerfiles or runtime config yet). Api/Worker will be added as compose services once EF Core config and Kafka wiring exist, so containerizing them isn't wasted rework.
+
+| Service | Image | Host port | Notes |
+|---|---|---|---|
+| `postgres` | `postgres:16-alpine` | `5432` | db=`solidary`, user/pass=`solidary`/`solidary` (local dev only) |
+| `kafka` | `apache/kafka:3.8.0` | `9094` | Single-node KRaft broker (no Zookeeper). In-network listener `kafka:9092`; host listener `localhost:9094` for running Api/Worker outside compose via `dotnet run`. |
+| `prometheus` | `prom/prometheus:latest` | `9090` | Config at `config/prometheus/prometheus.yml`; scrape targets `api:8080` and `worker:8081` are pre-declared but will show as down until those services join compose. |
+| `grafana` | `grafana/grafana:latest` | `3000` | admin/admin; anonymous viewer access enabled for demo convenience; Prometheus datasource auto-provisioned via `config/grafana/provisioning/`. |
+
+`docker compose up -d` / `docker compose down` from the repo root manages the stack.
+
 ## Repository Structure
 
 ```
@@ -72,6 +85,6 @@ Full diagrams (C4 container, ER, donation-flow sequence, deployment views for co
 
 ## Status
 
-Scaffolded so far: solution structure (`Solidary.sln` + 6 projects, references wired, builds clean), domain entities/enums, `ReceivedDonationEvent` contract, `docs/architecture.md`.
+Scaffolded so far: solution structure (`Solidary.sln` + 6 projects, references wired, builds clean), domain entities/enums, `ReceivedDonationEvent` contract, `docs/architecture.md`, `docker-compose.yml` with infra dependencies (Postgres, Kafka, Prometheus, Grafana — verified healthy locally).
 
-Not yet started: EF Core `DbContext`/migrations, MediatR handlers + JWT auth, Kafka producer/consumer wiring, `docker-compose.yml`, `k8s/` manifests, CI workflow, README.
+Not yet started: EF Core `DbContext`/migrations, MediatR handlers + JWT auth, Kafka producer/consumer wiring, adding Api/Worker to compose (+ Dockerfiles), `k8s/` manifests, CI workflow, README.
