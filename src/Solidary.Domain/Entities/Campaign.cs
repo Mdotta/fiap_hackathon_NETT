@@ -29,9 +29,6 @@ public class Campaign
             Id = Guid.NewGuid(),
             Title = title,
             Description = description,
-            // Normalize to UTC (Offset=0): Postgres' timestamptz — and Npgsql's writer for it — only
-            // accepts UTC-normalized DateTimeOffset values, not arbitrary offsets. ToUniversalTime()
-            // preserves the same instant regardless of which offset the caller sent.
             StartDate = startDate.ToUniversalTime(),
             EndDate = endDate.ToUniversalTime(),
             FundingGoal = fundingGoal,

@@ -1,0 +1,215 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: solidary
+data:
+  prometheus.yml: |
+    apiVersion: 1
+
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: solidary
+data:
+  provider.yml: |
+    apiVersion: 1
+
+    providers:
+      - name: solidary
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /etc/grafana/provisioning/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-json
+  namespace: solidary
+data:
+  solidary-overview.json: |
+    {
+      "id": null,
+      "uid": "solidary-overview",
+      "title": "Conexão Solidária — Overview",
+      "tags": ["solidary"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        { "id": 1, "type": "row", "title": "Service Health (Api & Worker)", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "panels": [] },
+
+        {
+          "id": 2, "type": "stat", "title": "Api Up",
+          "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "up{job=\"solidary-api\"}", "legendFormat": "api" }],
+          "fieldConfig": { "defaults": { "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+          "options": { "textMode": "value_and_name", "colorMode": "background" }
+        },
+        {
+          "id": 3, "type": "stat", "title": "Worker Up",
+          "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "up{job=\"solidary-worker\"}", "legendFormat": "worker" }],
+          "fieldConfig": { "defaults": { "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ], "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+          "options": { "textMode": "value_and_name", "colorMode": "background" }
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "HTTP Request Rate (Api)",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "sum by (code) (rate(http_requests_received_total{job=\"solidary-api\"}[5m]))", "legendFormat": "{{code}}" }],
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] }
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "HTTP Request Duration p95 (Api)",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"solidary-api\"}[5m])))", "legendFormat": "p95" }],
+          "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "CPU Usage (Api vs Worker)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "rate(process_cpu_seconds_total{job=~\"solidary-api|solidary-worker\"}[5m])", "legendFormat": "{{job}}" }],
+          "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] }
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "Memory (Working Set) — Api vs Worker",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "process_working_set_bytes{job=~\"solidary-api|solidary-worker\"}", "legendFormat": "{{job}}" }],
+          "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] }
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "In-Progress HTTP Requests",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "http_requests_in_progress{job=~\"solidary-api|solidary-worker\"}", "legendFormat": "{{job}}" }],
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+        },
+
+        { "id": 10, "type": "row", "title": "Donations", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 }, "panels": [] },
+
+        {
+          "id": 11, "type": "stat", "title": "Amount Donated (Last Hour)",
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 22 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "sum(increase(solidary_donation_amount_total[1h]))", "legendFormat": "last hour" }],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 }, "overrides": [] }
+        },
+        {
+          "id": 12, "type": "stat", "title": "Donations Processed (Total)",
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 22 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "sum(solidary_donations_processed_total)", "legendFormat": "total" }],
+          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+        },
+        {
+          "id": 13, "type": "bargauge", "title": "Amount Donated by Campaign (Last Hour)",
+          "gridPos": { "h": 10, "w": 12, "x": 12, "y": 22 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "sum by (campaign_title) (increase(solidary_donation_amount_total[1h]))", "legendFormat": "{{campaign_title}}" }],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 }, "overrides": [] },
+          "options": { "orientation": "horizontal", "displayMode": "gradient" }
+        },
+        {
+          "id": 14, "type": "timeseries", "title": "Donations by Campaign Over Time",
+          "gridPos": { "h": 10, "w": 12, "x": 0, "y": 27 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "sum by (campaign_title) (rate(solidary_donations_processed_total[5m]))", "legendFormat": "{{campaign_title}}" }],
+          "fieldConfig": { "defaults": { "unit": "cps" }, "overrides": [] },
+          "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] } }
+        },
+        {
+          "id": 15, "type": "timeseries", "title": "Amount Donated by Campaign Over Time",
+          "gridPos": { "h": 10, "w": 12, "x": 12, "y": 32 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "expr": "sum by (campaign_title) (increase(solidary_donation_amount_total[$__interval]))", "legendFormat": "{{campaign_title}}" }],
+          "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 }, "overrides": [] },
+          "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] } }
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: solidary
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "admin"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Viewer"
+          volumeMounts:
+            - name: datasource
+              mountPath: /etc/grafana/provisioning/datasources/prometheus.yml
+              subPath: prometheus.yml
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards/provider.yml
+              subPath: provider.yml
+            - name: dashboard-json
+              mountPath: /etc/grafana/provisioning/dashboards/solidary-overview.json
+              subPath: solidary-overview.json
+      volumes:
+        - name: datasource
+          configMap:
+            name: grafana-datasource
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-json
+          configMap:
+            name: grafana-dashboard-json
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: solidary
+spec:
+  type: NodePort
+  selector: { app: grafana }
+  ports:
+    - port: 3000
+      targetPort: 3000

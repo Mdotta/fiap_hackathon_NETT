@@ -7,8 +7,6 @@ namespace Solidary.Infrastructure.Persistence.Configurations;
 
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
-    // Fixed values so EF Core's HasData seeding produces a stable migration (no user secrets involved,
-    // this is a local/dev-only seeded account documented in the README).
     public static readonly Guid SeededAdminId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private static readonly DateTime SeededAt = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 

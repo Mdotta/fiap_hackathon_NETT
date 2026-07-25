@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: solidary-config
+  namespace: solidary
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Kafka__BootstrapServers: "kafka:9092"
+  Kafka__ConsumerGroup: "solidary-worker"
+  Jwt__Issuer: "Solidary.Api"
+  Jwt__Audience: "Solidary.Clients"
+  Jwt__ExpirationMinutes: "60"

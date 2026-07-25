@@ -16,6 +16,7 @@ See [docs/architecture.md](docs/architecture.md) for the full C4 container diagr
 
 - [Docker](https://www.docker.com/) with Compose v2 (`docker compose`, not `docker-compose`)
 - [.NET 10 SDK](https://dotnet.microsoft.com/) — only needed if you want to run Api/Worker from your IDE instead of in a container
+- [minikube](https://minikube.sigs.k8s.io/) + [kubectl](https://kubernetes.io/docs/tasks/tools/) — only needed for the Kubernetes deployment (see below); not required for docker-compose
 
 ## Running It
 
@@ -54,6 +55,31 @@ Both projects read their Postgres/Kafka connection settings from `appsettings.js
 docker compose down          # stop everything Compose started, keep volumes
 docker compose down -v       # also wipe Postgres/Grafana volumes
 ```
+
+### Option C — Kubernetes (Minikube)
+
+The `k8s/` manifests mirror the compose stack (Postgres, Kafka, a Kafka UI for demo purposes, Prometheus, Grafana, Api, Worker) as plain Deployments/Services/ConfigMaps/PVCs in a `solidary` namespace:
+
+```bash
+minikube start --driver=docker --cpus=3 --memory=4500   # adjust --memory to what Docker Desktop has available
+
+# Build the images directly into Minikube's own Docker daemon (it can't see host-built images)
+eval $(minikube docker-env)
+docker build -f src/Solidary.Api/Dockerfile -t solidary-api:latest .
+docker build -f src/Solidary.Worker/Dockerfile -t solidary-worker:latest .
+
+kubectl apply -f k8s/
+kubectl get pods -n solidary          # wait for everything to reach 1/1 Running
+
+# Reach the services (Minikube's docker driver on macOS needs a tunnel/port-forward, not a direct node IP)
+kubectl port-forward -n solidary svc/api 8080:8080 &
+kubectl port-forward -n solidary svc/grafana 3000:3000 &
+kubectl port-forward -n solidary svc/kafka-ui 8081:8080 &
+```
+
+Once port-forwarded, the same `curl` examples and Swagger UI below work unchanged against `localhost:8080`. Migrations and the Admin seed apply automatically on Api startup, same as compose.
+
+**Teardown**: `kubectl delete namespace solidary` (drops everything including the PVCs) or `minikube delete` to remove the whole cluster.
 
 ## Ports & URLs
 
@@ -139,7 +165,8 @@ Unit tests cover every MediatR use case handler (auth, campaigns, donations), th
 │   └── Solidary.Api.Tests/      # xUnit — mirrors Solidary.Application/UseCases structure
 ├── config/
 │   ├── prometheus/              # Scrape config
-│   └── grafana/provisioning/    # Auto-provisioned Prometheus datasource
+│   └── grafana/provisioning/    # Auto-provisioned Prometheus datasource + dashboard
+├── k8s/                         # Deployments, Services, ConfigMaps, Secrets, PVCs (Minikube target)
 ├── docs/
 │   └── architecture.md          # Mermaid diagrams: C4 container, ER, sequence, deployment
 ├── docker-compose.yml
@@ -148,7 +175,6 @@ Unit tests cover every MediatR use case handler (auth, campaigns, donations), th
 
 ## What's Not Built Yet
 
-- Kubernetes manifests (`k8s/`) — targeting Minikube, planned but not started.
 - CI pipeline (GitHub Actions) building the solution and producing Docker images on push.
 - `docs/db-justification.pdf` (required deliverable for the hackathon spec, not written yet).
 - A Hangfire dashboard UI — the recurring job runs and logs its results, but there's no `/hangfire` UI (didn't pair well with stateless JWT auth; not asked for).

@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data
+  namespace: solidary
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: solidary
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: kafka }
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels: { app: kafka }
+    spec:
+      containers:
+        - name: kafka
+          image: apache/kafka:3.8.0
+          ports:
+            - containerPort: 9092
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: "broker,controller"
+            # No PLAINTEXT_HOST listener here (unlike docker-compose.yml): nothing outside the
+            # cluster talks to Kafka directly — only the in-cluster "kafka:9092" listener is needed.
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka:9092"
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: "CONTROLLER"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@kafka:9093"
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: CLUSTER_ID
+              value: "MkU3OEVBNTcwNTJENDM2Qk"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+          # kafka-broker-api-versions.sh spins up a full JVM per invocation, which is slow under
+          # constrained CPU (Minikube). K8s exec probes default timeoutSeconds to 1s — far too short
+          # for this — so an otherwise-healthy broker gets killed for "failing" a probe that only
+          # failed because the JVM hadn't finished starting yet within 1 second. The docker-compose
+          # healthcheck this was ported from used timeout: 10s; do the same here.
+          readinessProbe:
+            exec:
+              command: ["/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command: ["/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kafka-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: solidary
+spec:
+  # Headless (no ClusterIP): a single-node KRaft broker advertises itself as its own controller at
+  # "kafka:9093" and has to self-connect to complete registration. Routing that through a normal
+  # ClusterIP Service hits a hairpin-NAT dead end with Minikube's bridge CNI (pod -> Service IP that
+  # maps back to the same pod) and the broker times out registering with itself, crash-looping. A
+  # headless Service makes "kafka" resolve straight to the pod IP via DNS, bypassing kube-proxy
+  # entirely — the same pattern real Kafka Helm charts use (StatefulSet + headless Service).
+  clusterIP: None
+  # Headless-service DNS normally only publishes a pod's address once it's Ready — but this pod
+  # can't become Ready until it resolves its own "kafka" DNS name to register with its controller.
+  # That's a startup deadlock. publishNotReadyAddresses breaks it by publishing the DNS record
+  # immediately, before the readiness probe passes.
+  publishNotReadyAddresses: true
+  selector: { app: kafka }
+  ports:
+    - name: broker
+      port: 9092
+      targetPort: 9092
+    # Needed too: KAFKA_CONTROLLER_QUORUM_VOTERS advertises the controller at "kafka:9093" — unlike
+    # docker-compose (where container-to-container traffic reaches any port regardless of what's
+    # "published"), a K8s Service only forwards ports it explicitly declares. Without this, the
+    # broker's self-registration with its own controller times out waiting for a route to :9093
+    # that doesn't exist, and the pod crash-loops.
+    - name: controller
+      port: 9093
+      targetPort: 9093
