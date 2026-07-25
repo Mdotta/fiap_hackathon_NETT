@@ -1,13 +1,13 @@
 using FluentAssertions;
 using Microsoft.Extensions.Options;
-using Solidary.Api.Features.Auth.Login;
 using Solidary.Api.Tests.TestSupport;
+using Solidary.Application.UseCases.Auth.Login;
 using Solidary.Domain.Entities;
 using Solidary.Domain.Enums;
 using Solidary.Infrastructure.Auth;
 using Xunit;
 
-namespace Solidary.Api.Tests.Features.Auth.Login;
+namespace Solidary.Api.Tests.UseCases.Auth.Login;
 
 public class LoginCommandHandlerTests
 {

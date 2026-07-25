@@ -1,10 +1,10 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Solidary.Api.Common;
+using Solidary.Application.Common;
 using Solidary.Domain.Abstractions;
 using Solidary.Infrastructure.Persistence;
 
-namespace Solidary.Api.Features.Auth.Login;
+namespace Solidary.Application.UseCases.Auth.Login;
 
 public class LoginCommandHandler(SolidaryDbContext dbContext, IPasswordHasher passwordHasher, ITokenGenerator tokenGenerator)
     : IRequestHandler<LoginCommand, Result<LoginResponse>>

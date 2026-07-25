@@ -1,13 +1,13 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Solidary.Api.Common;
+using Solidary.Application.Common;
 using Solidary.Domain.Abstractions;
 using Solidary.Domain.Entities;
 using Solidary.Domain.Enums;
 using Solidary.Domain.ValueObjects;
 using Solidary.Infrastructure.Persistence;
 
-namespace Solidary.Api.Features.Auth.Register;
+namespace Solidary.Application.UseCases.Auth.Register;
 
 public class RegisterDonorCommandHandler(SolidaryDbContext dbContext, IPasswordHasher passwordHasher)
     : IRequestHandler<RegisterDonorCommand, Result<RegisterDonorResponse>>

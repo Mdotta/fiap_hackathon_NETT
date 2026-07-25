@@ -8,19 +8,20 @@
 
   <ItemGroup>
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
-    <PackageReference Include="MediatR" Version="14.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Solidary.Domain\Solidary.Domain.csproj" />
     <ProjectReference Include="..\Solidary.Contracts\Solidary.Contracts.csproj" />
     <ProjectReference Include="..\Solidary.Infrastructure\Solidary.Infrastructure.csproj" />
+    <ProjectReference Include="..\Solidary.Application\Solidary.Application.csproj" />
   </ItemGroup>
 
 </Project>

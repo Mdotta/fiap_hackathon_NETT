@@ -1,7 +1,7 @@
 using MediatR;
-using Solidary.Api.Common;
+using Solidary.Application.Common;
 
-namespace Solidary.Api.Features.Auth.Login;
+namespace Solidary.Application.UseCases.Auth.Login;
 
 public record LoginCommand(string Email, string Password) : IRequest<Result<LoginResponse>>;
 

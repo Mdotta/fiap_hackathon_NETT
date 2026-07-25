@@ -1,7 +1,17 @@
+using Microsoft.AspNetCore.Builder;
+using Prometheus;
 using Solidary.Worker;
 
-var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddHostedService<Worker>();
+var builder = WebApplication.CreateBuilder(args);
 
-var host = builder.Build();
-host.Run();
+builder.Services.AddHostedService<Worker>();
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+app.UseHttpMetrics();
+
+app.MapHealthChecks("/health");
+app.MapMetrics("/metrics");
+
+app.Run();

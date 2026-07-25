@@ -1,7 +1,7 @@
 using MediatR;
-using Solidary.Api.Common;
+using Solidary.Application.Common;
 
-namespace Solidary.Api.Features.Auth.Register;
+namespace Solidary.Application.UseCases.Auth.Register;
 
 public record RegisterDonorCommand(string FullName, string Email, string Cpf, string Password)
     : IRequest<Result<RegisterDonorResponse>>;

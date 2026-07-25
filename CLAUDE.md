@@ -59,13 +59,14 @@ All naming is in **English**, translated from the (Portuguese) spec:
 ```
 /
 ├── src/
-│   ├── Solidary.Api/                 # ASP.NET Core minimal API + MediatR handlers, JWT auth
+│   ├── Solidary.Api/                 # ASP.NET Core minimal API host: DI composition, endpoint mapping, JWT bearer setup
 │   ├── Solidary.Worker/              # BackgroundService Kafka consumer
-│   ├── Solidary.Domain/              # Entities, enums, business rule validation
+│   ├── Solidary.Application/         # MediatR use cases (CQRS commands/queries) — the "business logic" layer
+│   ├── Solidary.Domain/              # Entities, enums, business rule validation, abstractions (interfaces)
 │   ├── Solidary.Contracts/           # Shared event DTOs (ReceivedDonationEvent)
-│   └── Solidary.Infrastructure/      # EF Core DbContext, migrations, Kafka producer/consumer setup
+│   └── Solidary.Infrastructure/      # EF Core DbContext, migrations, Kafka producer/consumer setup, auth implementations
 ├── tests/
-│   └── Solidary.Api.Tests/           # xUnit, one class per CQRS handler
+│   └── Solidary.Api.Tests/           # xUnit, one class per CQRS handler (mirrors Application/UseCases structure)
 ├── k8s/                              # Deployments, Services, ConfigMaps (Minikube target)
 ├── docs/
 │   ├── architecture.md               # Mermaid diagrams (C4 container, ER, sequence, deployment)
@@ -74,6 +75,17 @@ All naming is in **English**, translated from the (Portuguese) spec:
 ├── docker-compose.yml
 └── README.md                         # step-by-step local run instructions
 ```
+
+## Layering Conventions
+
+- **`Solidary.Application` holds all use cases**, under `UseCases/<Group>/<UseCase>/` (e.g. `UseCases/Auth/Register/RegisterDonorCommand.cs` + `RegisterDonorCommandHandler.cs`). Not called "Features" — always "UseCases". Each use case is a MediatR command/query + handler pair returning `Solidary.Application.Common.Result<T>` on expected failures (validation, not-found, wrong credentials) rather than throwing.
+- **Every layer owns its own DI registration** via a `DependencyInjection.cs` at the project root, exposing a single `IServiceCollection` extension method named after the layer:
+  - `Solidary.Application.DependencyInjection.AddApplication()` — registers MediatR against the Application assembly.
+  - `Solidary.Infrastructure.DependencyInjection.AddInfrastructure(IConfiguration)` — DbContext, JWT settings binding, password hasher/token generator.
+  - `Solidary.Api.DependencyInjection.AddApi(IConfiguration)` — OpenApi, JWT bearer authentication, authorization policies, health checks (i.e. presentation-layer/host concerns, not reusable by Worker).
+  - `Program.cs` in each host project only *calls* these (`builder.Services.AddApi(...)`, `.AddInfrastructure(...)`, `.AddApplication()`) — it must never register services inline.
+- **Endpoint mapping lives in `Solidary.Api/Endpoints/`, one file per endpoint group**, each exposing an `IEndpointRouteBuilder` extension (e.g. `AuthEndpoints.MapAuthEndpoints()`, `ObservabilityEndpoints.MapObservabilityEndpoints()` for `/health` + `/metrics`). `Program.cs` only calls `app.MapXxxEndpoints()` — no inline `app.MapPost(...)` calls.
+- Net effect: `Program.cs` in the Api is pure composition — DI extension calls, middleware pipeline (`UseHttpMetrics`, `UseAuthentication`, `UseAuthorization`), then endpoint-group mapping calls. No business logic, no inline route handlers, no inline service registration.
 
 ## Entities
 
@@ -89,13 +101,21 @@ Full diagrams (C4 container, ER, donation-flow sequence, deployment views for co
 - **Admin is seeded via `HasData`** in `UserConfiguration` with a fixed Guid (`00000000-0000-0000-0000-000000000001`), email `admin@solidary.local`, password `Admin@123` (BCrypt-hashed, dev-only — document in README). `HasData` requires fully deterministic values, which is why the id/hash/timestamp are hardcoded constants rather than generated at migration time.
 - **CPF validation is a real checksum**, not just a regex — `Solidary.Domain.ValueObjects.CpfValidator` implements the standard Brazilian check-digit algorithm. Covered by its own test class since it's a business rule independent of any single handler.
 - **Password hashing**: `IPasswordHasher`/`ITokenGenerator` interfaces live in `Solidary.Domain.Abstractions` (pure contracts, no infra dependency); `BCryptPasswordHasher`/`JwtTokenGenerator` implementations live in `Solidary.Infrastructure.Auth`. Registered as singletons in DI since both are stateless.
-- **Auth commands use MediatR** (`Features/Auth/Register/RegisterDonorCommand`, `Features/Auth/Login/LoginCommand` in the Api project) returning a lightweight `Result<T>` (`Solidary.Api.Common.Result`) instead of throwing on expected validation failures (duplicate email, invalid CPF, wrong password) — keeps handlers testable without exception-driven control flow, and endpoints map `Result` to the right HTTP status (400 for register failures, 401 for login failures).
+- **Auth use cases use MediatR** (`Solidary.Application/UseCases/Auth/Register/RegisterDonorCommand`, `UseCases/Auth/Login/LoginCommand`) returning a lightweight `Result<T>` (`Solidary.Application.Common.Result`) instead of throwing on expected validation failures (duplicate email, invalid CPF, wrong password) — keeps handlers testable without exception-driven control flow, and endpoints (`Solidary.Api/Endpoints/AuthEndpoints.cs`) map `Result` to the right HTTP status (400 for register failures, 401 for login failures). See "Layering Conventions" above.
 - JWT claims: `sub` (user id), `email`, `name`, `role`. Signing key/issuer/audience/expiry come from the `Jwt` config section (`JwtSettings`) — the dev signing key in `appsettings.json` is explicitly marked dev-only and must be overridden via env var/K8s secret for anything beyond local use.
-- `POST /auth/register` (public, Donor only) and `POST /auth/login` (public) are wired in `Program.cs`; `/health` exposes a Postgres-backed health check via `AspNetCore.HealthChecks.NpgSql`. Full `/metrics` (Prometheus exporter) isn't wired yet — still open.
+- `POST /auth/register` (public, Donor only) and `POST /auth/login` (public) are mapped in `Endpoints/AuthEndpoints.cs`; `/health` exposes a Postgres-backed health check via `AspNetCore.HealthChecks.NpgSql`.
 - Verified end-to-end against the compose Postgres: migration applies cleanly, admin seed row present, register/login/duplicate-email/wrong-password all return the expected status codes and a decodable JWT with correct role claim.
+
+## Observability
+
+- **`prometheus-net.AspNetCore`** provides both services' `/metrics` endpoint (`app.UseHttpMetrics()` + `app.MapMetrics("/metrics")`), giving HTTP request count/duration/in-progress metrics for free — no custom instrumentation yet.
+- **Worker is now a `WebApplication` host, not a plain generic `Host`** — needed Kestrel to expose `/health`/`/metrics` alongside the `BackgroundService`. This required adding `<FrameworkReference Include="Microsoft.AspNetCore.App" />` to `Solidary.Worker.csproj` (the `Microsoft.NET.Sdk.Worker` SDK doesn't pull in ASP.NET Core by default) and an explicit `using Microsoft.AspNetCore.Builder;` (no implicit usings for it outside `Sdk.Web`). Worker's `/health` has no dependency checks yet (no DB/Kafka wiring in Worker yet) — just liveness for now.
+- **Fixed ports, not launch-profile randoms**: Api listens on `8080`, Worker on `8081`, both via a `Kestrel:Endpoints:Http:Url` entry in `appsettings.json` (this config wins over `ASPNETCORE_URLS`/launch profiles, so don't pass `--urls` alongside it — that double-binds and crashes on startup). Matches the ports already declared in `config/prometheus/prometheus.yml`. `launchSettings.json` updated to match for consistency, though it no longer has any effect once the Kestrel config section is present.
+- Dropped `UseHttpsRedirection()` from the Api — no HTTPS endpoint is configured (TLS termination is expected at the ingress/gateway layer in K8s, not in-process), so the redirect had nothing to redirect to.
+- Verified locally: ran Api + Worker directly on the host (`dotnet run`) against the compose Postgres, both `/health` returned `Healthy`, both `/metrics` returned real Prometheus exposition text. Started the compose Prometheus and confirmed its config loads both scrape jobs (`solidary-api`, `solidary-worker`) without error — they show as `down` since Api/Worker aren't containerized yet (expected), but a container-to-host reachability check (`docker exec prometheus wget host.docker.internal:8080/metrics`) confirms scraping will work as soon as they join the compose network under their real service names.
 
 ## Status
 
-Scaffolded so far: solution structure (`Solidary.sln` + 6 projects, references wired, builds clean), domain entities/enums, `ReceivedDonationEvent` contract, `docs/architecture.md`, `docker-compose.yml` with infra dependencies (Postgres, Kafka, Prometheus, Grafana — verified healthy locally), EF Core `SolidaryDbContext` + initial migration (applied and verified against Postgres), JWT auth with Register/Login MediatR handlers (verified end-to-end), 14 passing xUnit tests (auth handlers + CpfValidator).
+Scaffolded so far: solution structure (`Solidary.sln` + 7 projects, references wired, builds clean — added `Solidary.Application`), domain entities/enums, `ReceivedDonationEvent` contract, `docs/architecture.md`, `docker-compose.yml` with infra dependencies (Postgres, Kafka, Prometheus, Grafana — verified healthy locally), EF Core `SolidaryDbContext` + initial migration (applied and verified against Postgres), JWT auth with Register/Login MediatR use cases (verified end-to-end), 14 passing xUnit tests (auth handlers + CpfValidator), `/health` + `/metrics` on both Api and Worker (verified locally, Prometheus scrape config validated), layered architecture refactor — Application/UseCases layer, per-layer `DependencyInjection.cs` extensions, dedicated `Endpoints/` mapping files (`Program.cs` is now pure composition; re-verified end-to-end and all tests still pass after the refactor).
 
-Not yet started: Prometheus `/metrics` exporter wiring, Kafka producer/consumer wiring, adding Api/Worker to compose (+ Dockerfiles), `k8s/` manifests, CI workflow, README.
+Not yet started: Kafka producer/consumer wiring, adding Api/Worker to compose (+ Dockerfiles), `k8s/` manifests, CI workflow, README, a real Grafana dashboard (datasource is provisioned but no dashboard JSON yet).

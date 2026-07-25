@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Solidary.Api\Solidary.Api.csproj" />
+    <ProjectReference Include="..\..\src\Solidary.Application\Solidary.Application.csproj" />
   </ItemGroup>
 
 </Project>

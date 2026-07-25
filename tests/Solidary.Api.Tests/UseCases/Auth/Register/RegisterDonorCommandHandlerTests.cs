@@ -1,10 +1,10 @@
 using FluentAssertions;
-using Solidary.Api.Features.Auth.Register;
 using Solidary.Api.Tests.TestSupport;
+using Solidary.Application.UseCases.Auth.Register;
 using Solidary.Infrastructure.Auth;
 using Xunit;
 
-namespace Solidary.Api.Tests.Features.Auth.Register;
+namespace Solidary.Api.Tests.UseCases.Auth.Register;
 
 public class RegisterDonorCommandHandlerTests
 {

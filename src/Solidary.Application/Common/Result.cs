@@ -1,4 +1,4 @@
-namespace Solidary.Api.Common;
+namespace Solidary.Application.Common;
 
 public class Result<T>
 {
