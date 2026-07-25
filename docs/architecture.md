@@ -10,7 +10,7 @@ flowchart TB
     Admin((Admin))
 
     subgraph Cluster["Kubernetes Cluster (Minikube)"]
-        Api["Solidary.Api\n.NET 10 / MediatR / CQRS\nJWT auth"]
+        Api["Solidary.Api\n.NET 10"]
         Worker["Solidary.Worker\n.NET 10\nKafka consumer\n(internal only)"]
         DB[("PostgreSQL\nshared database")]
         Kafka["Kafka\ntopic: ReceivedDonationEvent"]
