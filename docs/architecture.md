@@ -9,25 +9,25 @@ flowchart TB
     Donor((Donor))
     Admin((Admin))
 
-    subgraph Cluster["Kubernetes Cluster (Minikube)"]
-        Api["Solidary.Api\n.NET 10"]
-        Worker["Solidary.Worker\n.NET 10\nKafka consumer\n(internal only)"]
-        DB[("PostgreSQL\nshared database")]
-        Kafka["Kafka\ntopic: ReceivedDonationEvent"]
+    subgraph Cluster["Kubernetes Cluster - Minikube"]
+        Api["Solidary.Api<br/>.NET 10"]
+        Worker["Solidary.Worker<br/>Kafka consumer, internal only"]
+        DB[("PostgreSQL<br/>shared database")]
+        Kafka["Kafka<br/>topic ReceivedDonationEvent"]
         Prometheus["Prometheus"]
         Grafana["Grafana"]
     end
 
-    Donor -->|"HTTPS: register, donate,\nview active campaigns"| Api
-    Admin -->|"HTTPS: create/edit campaigns\n(JWT, role=Admin)"| Api
+    Donor -->|HTTPS| Api
+    Admin -->|"HTTPS, JWT role=Admin"| Api
 
-    Api -->|"EF Core"| DB
-    Api -->|"publish ReceivedDonationEvent"| Kafka
-    Kafka -->|"consume"| Worker
-    Worker -->|"EF Core: update Campaign.TotalRaised,\nmark Donation Processed"| DB
+    Api -->|EF Core| DB
+    Api -->|publish event| Kafka
+    Kafka -->|consume| Worker
+    Worker -->|EF Core update| DB
 
-    Api -->|"/metrics"| Prometheus
-    Worker -->|"/metrics"| Prometheus
+    Api -->|metrics| Prometheus
+    Worker -->|metrics| Prometheus
     Prometheus --> Grafana
 ```
 
@@ -50,7 +50,7 @@ erDiagram
         string Email UK
         string PasswordHash
         string Cpf "nullable, Donor only"
-        enum Role "Admin | Donor"
+        string Role "Admin or Donor"
         datetime CreatedAt
     }
 
@@ -62,7 +62,7 @@ erDiagram
         datetime EndDate
         decimal FundingGoal
         decimal TotalRaised "updated only by Worker"
-        enum Status "Active | Completed | Cancelled"
+        string Status "Active, Completed, or Cancelled"
         guid CreatedByUserId FK
     }
 
@@ -71,7 +71,7 @@ erDiagram
         guid CampaignId FK
         guid DonorId FK
         decimal Amount
-        enum Status "Pending | Processed | Failed"
+        string Status "Pending, Processed, or Failed"
         datetime CreatedAt
         datetime ProcessedAt "nullable"
     }
@@ -81,27 +81,27 @@ erDiagram
 
 ```mermaid
 sequenceDiagram
-    actor Donor
+    participant Donor
     participant Api as Solidary.Api
     participant DB as PostgreSQL
     participant Kafka
     participant Worker as Solidary.Worker
 
-    Donor->>Api: POST /donations {campaignId, amount} (JWT)
+    Donor->>Api: POST /donations - campaignId, amount, JWT
     Api->>DB: validate campaign is Active
-    Api->>DB: insert Donation (Status=Pending)
+    Api->>DB: insert Donation, status Pending
     Api->>Kafka: publish ReceivedDonationEvent
     Api-->>Donor: 202 Accepted
 
     Kafka->>Worker: consume ReceivedDonationEvent
     Worker->>DB: begin transaction
-    Worker->>DB: Campaign.TotalRaised += Amount
-    Worker->>DB: Donation.Status = Processed
+    Worker->>DB: increment Campaign TotalRaised
+    Worker->>DB: set Donation status Processed
     Worker->>DB: commit
 
-    Donor->>Api: GET /campaigns (public)
+    Donor->>Api: GET /campaigns - public
     Api->>DB: select Active campaigns
-    Api-->>Donor: [{Title, FundingGoal, TotalRaised}]
+    Api-->>Donor: campaign list - Title, FundingGoal, TotalRaised
 ```
 
 This matches the demo video script: show the donation payload being sent, open the Kafka UI to show the message on the topic, then call the public campaigns endpoint to prove the Worker updated the total.
@@ -112,10 +112,10 @@ This matches the demo video script: show the donation payload being sent, open t
 
 ```mermaid
 flowchart LR
-    subgraph "docker-compose"
+    subgraph Compose["docker-compose"]
         api[api]
         worker[worker]
-        postgres[(postgres)]
+        postgres[("postgres")]
         kafka[kafka]
         prometheus[prometheus]
         grafana[grafana]
@@ -133,8 +133,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph "Minikube cluster"
-        subgraph "Deployments"
+    subgraph Minikube["Minikube cluster"]
+        subgraph Deployments["Deployments"]
             apiDep["api Deployment"]
             workerDep["worker Deployment"]
             pgDep["postgres Deployment"]
@@ -142,10 +142,10 @@ flowchart LR
             promDep["prometheus Deployment"]
             grafDep["grafana Deployment"]
         end
-        apiSvc["api Service\n(ClusterIP/NodePort)"]
+        apiSvc["api Service"]
         pgSvc["postgres Service"]
         kafkaSvc["kafka Service"]
-        cm["ConfigMap\nconnection strings, Kafka broker,\nJWT settings"]
+        cm["ConfigMap - connection strings, Kafka broker, JWT settings"]
     end
     apiSvc --> apiDep
     apiDep --> pgSvc --> pgDep
@@ -156,7 +156,7 @@ flowchart LR
     cm -.-> workerDep
 ```
 
-`Worker` has a Deployment but no externally-reachable Service (ClusterIP only for Prometheus scraping), consistent with "not exposed externally" in the requirements.
+`Worker` has a Deployment but no externally-reachable Service (ClusterIP only for Prometheus scraping), consistent with "not exposed externally" in the requirements. `api Service` is a NodePort so it's reachable from outside the cluster for the demo; every other Service above is ClusterIP-only.
 
 ## 5. Naming Reference (Portuguese spec → English domain model)
 

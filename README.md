@@ -184,12 +184,7 @@ Unit tests cover every MediatR use case handler (auth, campaigns, donations), th
 1. **Build & Test** — restores, builds in `Release`, runs the full xUnit suite (no external services needed — everything uses EF Core's InMemory provider and fakes).
 2. **Build & Push Images** — only on an actual push to `main` (skipped for PRs) and only if step 1 passed. Builds both Docker images with Buildx and pushes them to GitHub Container Registry as `ghcr.io/<owner>/solidary-api` and `solidary-worker`, tagged `latest` and the commit SHA. Uses the built-in `GITHUB_TOKEN` — no secrets to configure.
 
-Automated deployment to the cluster is intentionally not part of this pipeline (the hackathon spec marks it optional; image generation is the required part).
-
-## What's Not Built Yet
-
-- `docs/db-justification.pdf` (required deliverable for the hackathon spec, not written yet).
-- A Hangfire dashboard UI — the recurring job runs and logs its results, but there's no `/hangfire` UI (didn't pair well with stateless JWT auth; not asked for).
+Automated deployment to the cluster is intentionally not part of this pipeline.
 
 ## Known Issues
 
