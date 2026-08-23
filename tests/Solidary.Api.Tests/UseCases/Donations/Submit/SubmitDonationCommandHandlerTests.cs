@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Solidary.Api.Tests.TestSupport;
 using Solidary.Application.UseCases.Donations.Submit;
 using Solidary.Contracts;
@@ -25,7 +26,7 @@ public class SubmitDonationCommandHandlerTests
         await dbContext.SaveChangesAsync();
 
         var publisher = new FakeEventPublisher();
-        var handler = new SubmitDonationCommandHandler(dbContext, publisher);
+        var handler = new SubmitDonationCommandHandler(dbContext, publisher, NullLogger<SubmitDonationCommandHandler>.Instance);
 
         var command = new SubmitDonationCommand(DonorId, campaign.Id, 100m);
         var result = await handler.Handle(command, CancellationToken.None);
@@ -52,7 +53,7 @@ public class SubmitDonationCommandHandlerTests
         await dbContext.SaveChangesAsync();
 
         var publisher = new FakeEventPublisher();
-        var handler = new SubmitDonationCommandHandler(dbContext, publisher);
+        var handler = new SubmitDonationCommandHandler(dbContext, publisher, NullLogger<SubmitDonationCommandHandler>.Instance);
 
         var result = await handler.Handle(new SubmitDonationCommand(DonorId, campaign.Id, 0m), CancellationToken.None);
 
@@ -66,7 +67,7 @@ public class SubmitDonationCommandHandlerTests
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
         var publisher = new FakeEventPublisher();
-        var handler = new SubmitDonationCommandHandler(dbContext, publisher);
+        var handler = new SubmitDonationCommandHandler(dbContext, publisher, NullLogger<SubmitDonationCommandHandler>.Instance);
 
         var result = await handler.Handle(new SubmitDonationCommand(DonorId, Guid.NewGuid(), 100m), CancellationToken.None);
 
@@ -85,7 +86,7 @@ public class SubmitDonationCommandHandlerTests
         await dbContext.SaveChangesAsync();
 
         var publisher = new FakeEventPublisher();
-        var handler = new SubmitDonationCommandHandler(dbContext, publisher);
+        var handler = new SubmitDonationCommandHandler(dbContext, publisher, NullLogger<SubmitDonationCommandHandler>.Instance);
 
         var result = await handler.Handle(new SubmitDonationCommand(DonorId, campaign.Id, 100m), CancellationToken.None);
 

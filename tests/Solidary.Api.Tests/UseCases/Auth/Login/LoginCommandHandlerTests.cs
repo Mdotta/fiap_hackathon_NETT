@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Solidary.Api.Tests.TestSupport;
 using Solidary.Application.UseCases.Auth.Login;
@@ -37,7 +38,7 @@ public class LoginCommandHandlerTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var handler = new LoginCommandHandler(dbContext, hasher, new JwtTokenGenerator(Options.Create(Settings)));
+        var handler = new LoginCommandHandler(dbContext, hasher, new JwtTokenGenerator(Options.Create(Settings)), NullLogger<LoginCommandHandler>.Instance);
         var result = await handler.Handle(new LoginCommand("maria@example.com", "SecurePass1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -63,7 +64,7 @@ public class LoginCommandHandlerTests
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync();
 
-        var handler = new LoginCommandHandler(dbContext, hasher, new JwtTokenGenerator(Options.Create(Settings)));
+        var handler = new LoginCommandHandler(dbContext, hasher, new JwtTokenGenerator(Options.Create(Settings)), NullLogger<LoginCommandHandler>.Instance);
         var result = await handler.Handle(new LoginCommand("maria@example.com", "WrongPassword"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
@@ -76,7 +77,7 @@ public class LoginCommandHandlerTests
         await using var dbContext = InMemoryDbContextFactory.Create();
         var hasher = new BCryptPasswordHasher();
 
-        var handler = new LoginCommandHandler(dbContext, hasher, new JwtTokenGenerator(Options.Create(Settings)));
+        var handler = new LoginCommandHandler(dbContext, hasher, new JwtTokenGenerator(Options.Create(Settings)), NullLogger<LoginCommandHandler>.Instance);
         var result = await handler.Handle(new LoginCommand("ghost@example.com", "Whatever1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();

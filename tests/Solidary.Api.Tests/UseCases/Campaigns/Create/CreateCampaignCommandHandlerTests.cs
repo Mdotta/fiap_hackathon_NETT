@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Solidary.Api.Tests.TestSupport;
 using Solidary.Application.UseCases.Campaigns.Create;
 using Xunit;
@@ -13,7 +14,7 @@ public class CreateCampaignCommandHandlerTests
     public async Task Handle_WithValidData_CreatesCampaignAndReturnsSuccess()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new CreateCampaignCommandHandler(dbContext);
+        var handler = new CreateCampaignCommandHandler(dbContext, NullLogger<CreateCampaignCommandHandler>.Instance);
 
         var command = new CreateCampaignCommand(
             "Winter Coat Drive",
@@ -34,7 +35,7 @@ public class CreateCampaignCommandHandlerTests
     public async Task Handle_WithPastEndDate_ReturnsFailure()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new CreateCampaignCommandHandler(dbContext);
+        var handler = new CreateCampaignCommandHandler(dbContext, NullLogger<CreateCampaignCommandHandler>.Instance);
 
         var command = new CreateCampaignCommand(
             "Winter Coat Drive",
@@ -54,7 +55,7 @@ public class CreateCampaignCommandHandlerTests
     public async Task Handle_WithNonPositiveFundingGoal_ReturnsFailure()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new CreateCampaignCommandHandler(dbContext);
+        var handler = new CreateCampaignCommandHandler(dbContext, NullLogger<CreateCampaignCommandHandler>.Instance);
 
         var command = new CreateCampaignCommand(
             "Winter Coat Drive",

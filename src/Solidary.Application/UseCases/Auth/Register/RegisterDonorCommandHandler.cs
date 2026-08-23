@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Solidary.Application.Common;
 using Solidary.Domain.Abstractions;
 using Solidary.Domain.Entities;
@@ -9,22 +10,25 @@ using Solidary.Infrastructure.Persistence;
 
 namespace Solidary.Application.UseCases.Auth.Register;
 
-public class RegisterDonorCommandHandler(SolidaryDbContext dbContext, IPasswordHasher passwordHasher)
+public class RegisterDonorCommandHandler(
+    SolidaryDbContext dbContext,
+    IPasswordHasher passwordHasher,
+    ILogger<RegisterDonorCommandHandler> logger)
     : IRequestHandler<RegisterDonorCommand, Result<RegisterDonorResponse>>
 {
     public async Task<Result<RegisterDonorResponse>> Handle(RegisterDonorCommand request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.FullName))
-            return Result<RegisterDonorResponse>.Failure("Full name is required.");
+            return Fail("Full name is required.", request.Email);
 
         if (string.IsNullOrWhiteSpace(request.Email))
-            return Result<RegisterDonorResponse>.Failure("Email is required.");
+            return Fail("Email is required.", request.Email);
 
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
-            return Result<RegisterDonorResponse>.Failure("Password must be at least 8 characters long.");
+            return Fail("Password must be at least 8 characters long.", request.Email);
 
         if (!CpfValidator.IsValid(request.Cpf))
-            return Result<RegisterDonorResponse>.Failure("CPF is invalid.");
+            return Fail("CPF is invalid.", request.Email);
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
@@ -32,7 +36,7 @@ public class RegisterDonorCommandHandler(SolidaryDbContext dbContext, IPasswordH
             .AnyAsync(u => u.Email == normalizedEmail, cancellationToken);
 
         if (emailAlreadyExists)
-            return Result<RegisterDonorResponse>.Failure("Email is already registered.");
+            return Fail("Email is already registered.", normalizedEmail);
 
         var user = new User
         {
@@ -48,6 +52,14 @@ public class RegisterDonorCommandHandler(SolidaryDbContext dbContext, IPasswordH
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        logger.LogInformation("Donor {UserId} registered with email {Email}", user.Id, user.Email);
+
         return Result<RegisterDonorResponse>.Success(new RegisterDonorResponse(user.Id, user.FullName, user.Email));
+    }
+
+    private Result<RegisterDonorResponse> Fail(string error, string? email)
+    {
+        logger.LogWarning("Donor registration rejected for {Email}: {Reason}", email, error);
+        return Result<RegisterDonorResponse>.Failure(error);
     }
 }

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Solidary.Api.Tests.TestSupport;
 using Solidary.Application.UseCases.Auth.Register;
 using Solidary.Infrastructure.Auth;
@@ -14,7 +15,7 @@ public class RegisterDonorCommandHandlerTests
     public async Task Handle_WithValidData_CreatesDonorAndReturnsSuccess()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher());
+        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher(), NullLogger<RegisterDonorCommandHandler>.Instance);
 
         var command = new RegisterDonorCommand("Maria Silva", "maria@example.com", ValidCpf, "SecurePass1");
 
@@ -29,7 +30,7 @@ public class RegisterDonorCommandHandlerTests
     public async Task Handle_WithDuplicateEmail_ReturnsFailure()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher());
+        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher(), NullLogger<RegisterDonorCommandHandler>.Instance);
         var command = new RegisterDonorCommand("Maria Silva", "maria@example.com", ValidCpf, "SecurePass1");
         await handler.Handle(command, CancellationToken.None);
 
@@ -44,7 +45,7 @@ public class RegisterDonorCommandHandlerTests
     public async Task Handle_WithInvalidCpf_ReturnsFailure()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher());
+        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher(), NullLogger<RegisterDonorCommandHandler>.Instance);
 
         var command = new RegisterDonorCommand("Maria Silva", "maria@example.com", "11111111111", "SecurePass1");
 
@@ -58,7 +59,7 @@ public class RegisterDonorCommandHandlerTests
     public async Task Handle_WithShortPassword_ReturnsFailure()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher());
+        var handler = new RegisterDonorCommandHandler(dbContext, new BCryptPasswordHasher(), NullLogger<RegisterDonorCommandHandler>.Instance);
 
         var command = new RegisterDonorCommand("Maria Silva", "maria@example.com", ValidCpf, "short");
 

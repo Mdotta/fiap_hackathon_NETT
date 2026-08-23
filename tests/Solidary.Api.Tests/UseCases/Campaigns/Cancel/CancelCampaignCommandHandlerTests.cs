@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Solidary.Api.Tests.TestSupport;
 using Solidary.Application.UseCases.Campaigns.Cancel;
 using Solidary.Domain.Entities;
@@ -21,7 +22,7 @@ public class CancelCampaignCommandHandlerTests
         dbContext.Campaigns.Add(campaign);
         await dbContext.SaveChangesAsync();
 
-        var handler = new CancelCampaignCommandHandler(dbContext);
+        var handler = new CancelCampaignCommandHandler(dbContext, NullLogger<CancelCampaignCommandHandler>.Instance);
         var result = await handler.Handle(new CancelCampaignCommand(campaign.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -33,7 +34,7 @@ public class CancelCampaignCommandHandlerTests
     public async Task Handle_WithUnknownCampaign_ReturnsFailure()
     {
         await using var dbContext = InMemoryDbContextFactory.Create();
-        var handler = new CancelCampaignCommandHandler(dbContext);
+        var handler = new CancelCampaignCommandHandler(dbContext, NullLogger<CancelCampaignCommandHandler>.Instance);
 
         var result = await handler.Handle(new CancelCampaignCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -50,7 +51,7 @@ public class CancelCampaignCommandHandlerTests
         dbContext.Campaigns.Add(campaign);
         await dbContext.SaveChangesAsync();
 
-        var handler = new CancelCampaignCommandHandler(dbContext);
+        var handler = new CancelCampaignCommandHandler(dbContext, NullLogger<CancelCampaignCommandHandler>.Instance);
         var result = await handler.Handle(new CancelCampaignCommand(campaign.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
