@@ -53,6 +53,8 @@ services:
     container_name: solidary-loki
     ports:
       - "3100:3100"
+    networks:
+      - observability
     volumes:
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
@@ -65,6 +67,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    networks:
+      - observability
     volumes:
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
@@ -117,3 +121,7 @@ volumes:
   postgres_data:
   grafana_data:
   loki_data:
+
+networks:
+  observability:
+    driver: bridge

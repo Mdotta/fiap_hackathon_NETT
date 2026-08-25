@@ -11,11 +11,12 @@ public static class SerilogSetup
         return hostBuilder.UseSerilog((context, loggerConfiguration) =>
         {
             loggerConfiguration
+                .ReadFrom.Configuration(context.Configuration)
+                .Enrich.WithProperty("service", serviceName)
                 .WriteTo.Console()
                 .WriteTo.GrafanaLoki(
                     "http://localhost:3100",
-                    [new LokiLabel { Key = "app", Value = "solidary" }])
-                .Enrich.WithProperty("service", serviceName);
+                    [new LokiLabel { Key = "app", Value = "solidary" }]);
         });
     }
 }
